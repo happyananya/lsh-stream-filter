@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+seaborn
+sentence-transformers
+datasets
+tqdm
+scikit-learn
+pandas
