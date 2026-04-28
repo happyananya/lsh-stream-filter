@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Local caches
+.hf_cache/
+.cache/
+
+# Generated datasets and large local artifacts
+data/
+*.hdf5
+*.npy
+*.npz
+
+# Local experiment outputs
+*.log
+*.tmp
+
+# Keep repository directories if needed
+!data/.gitkeep

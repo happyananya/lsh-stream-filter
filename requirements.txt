@@ -7,3 +7,6 @@ datasets
 tqdm
 scikit-learn
 pandas
+h5py
+hnswlib
+faiss-cpu

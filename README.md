@@ -68,6 +68,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Phase 1 Dataset Setup
+
+For the LSH vs HNSW research plan, Phase 1 assets are prepared with:
+
+```bash
+python scripts/phase1/prepare_sift1m.py --hdf5-path sift-128-euclidean.hdf5 --output-dir data/sift1m
+python scripts/phase1/prepare_msmarco.py --output-dir data/msmarco --n-passages 1000000 --n-queries 6980 --seed 42
+python scripts/phase1/compute_groundtruth.py --base-path data/msmarco/base.npy --query-path data/msmarco/query.npy --output-path data/msmarco/groundtruth.npy --metric ip --k 100
+```
+
+Detailed reproducibility notes are documented in `PHASE1.md`.
+
 ## Quick Start
 
 ### 1) Run module smoke tests

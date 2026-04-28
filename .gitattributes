@@ -1,0 +1,6 @@
+* text=auto
+
+# Treat large numeric artifacts as binary
+*.npy binary
+*.npz binary
+*.hdf5 binary
