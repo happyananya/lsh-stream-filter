@@ -10,6 +10,8 @@ __pycache__/
 # Virtual environments
 .venv/
 venv/
+.venv310/
+venv_new/
 env/
 
 # OS / editor noise
