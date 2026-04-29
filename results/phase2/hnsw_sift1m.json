@@ -1,0 +1,22 @@
+{
+  "method": "hnswlib",
+  "dataset": "sift1m",
+  "params": {
+    "M": 16,
+    "ef_construction": 200,
+    "ef_search": 100,
+    "k": 10,
+    "warmup": 1000,
+    "max_queries": 0
+  },
+  "metrics": {
+    "recall": 0.9825500000000001,
+    "qps": 1073.113499203727,
+    "p50_us": 577.4165,
+    "p95_us": 2324.0389499999965,
+    "p99_us": 6775.329490000008,
+    "mean_us": 931.8678786,
+    "n_queries": 10000,
+    "warmup": 1000
+  }
+}
