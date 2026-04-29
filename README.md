@@ -1,76 +1,43 @@
-# LSH Stream Filter
+# LSH vs HNSW Research Workflow
 
-An experimental streaming novelty filter that uses SimHash-style Locality Sensitive Hashing (LSH) to reject near-duplicate embeddings in real time.
+This repository tracks an implementation-first research plan for comparing LSH and HNSW on ANN search workloads.
 
-The project compares an approximate LSH admission filter against a brute-force cosine-similarity oracle, then evaluates precision/recall/compression across synthetic and real-text embedding streams.
+The active plan is documented in `LSH_vs_HNSW_Research_Plan (1).md` and currently focuses on:
 
-## What This Project Does
+- Phase 1: dataset/environment setup and ground truth
+- Phase 2: reproducibility baselines on SIFT1M
+- Phase 3+: broader baseline sweeps and optimization work
 
-In a high-volume embedding stream, storing every vector is expensive and often redundant.
-This repository implements:
+## Active Structure
 
-- `LSHAdmissionFilter`: fast approximate novelty filter using random hyperplane hashes.
-- `BruteForceOracle`: exact ground truth novelty detector (`O(n)` per insert).
-- Stream generators for:
-  - synthetic clustered vectors
-  - real MS MARCO passage embeddings (MiniLM)
-- Evaluation utilities and experiment scripts to measure:
-  - novelty precision
-  - novelty recall
-  - compression ratio
-  - false admit / false reject rates
+- `scripts/phase1/` - dataset preparation and ground-truth generation
+- `scripts/phase2/` - SIFT1M baseline reproduction (HNSW, FALCONN, fallback)
+- `experiments/phase3_sift1m.py` - Phase 3 SIFT1M baseline runs
+- `experiments/phase3_msmarco.py` - Phase 3 MS MARCO baseline runs
+- `results/phase2/` - Phase 2 outputs
+- `results/phase3_*.csv`, `results/phase3_*_pareto.png` - Phase 3 outputs
 
-## Core Idea
+Legacy stream-filter prototype files (`lsh.py`, `stream.py`, `oracle.py`, `evaluate.py`, and `experiments/day*.py`) are kept for reference but are not the primary plan path now.
 
-Each incoming vector is L2-normalized and hashed into `L` hash tables, each table using `k` random hyperplanes (bit signature length `k`).
+## Environment Setup
 
-Admission decision:
-
-1. Look up bucket-mates in every table.
-2. For each candidate, compute true cosine similarity.
-3. Reject if any candidate similarity is `>= similarity_threshold`.
-4. Otherwise admit and insert into all tables.
-
-This hybrid approach keeps LSH's speed benefits while reducing accidental false rejections from random bucket collisions.
-
-## Repository Structure
-
-- `lsh.py` - `LSHAdmissionFilter` implementation + smoke tests
-- `oracle.py` - exact `BruteForceOracle` baseline + smoke tests
-- `stream.py` - synthetic/real stream generation, embedding diagnostics
-- `evaluate.py` - metrics + FIFO/random-eviction baselines
-- `experiments/day3_synthetic.py` - synthetic integration run
-- `experiments/day4_real_data.py` - real data run at multiple redundancy levels
-- `experiments/day5_sweep.py` - parameter sweep + plots + CSV outputs
-- `results/sweep_results.csv` - saved sweep table (sample run artifact)
-- `requirements.txt` - Python dependencies
-
-## Requirements
-
-- Python 3.10+ recommended
-- macOS/Linux/WSL (tested in standard shell environments)
-- Internet connection for first real-data run (downloads dataset/model)
-
-Python packages used:
-
-- `numpy`, `scipy`, `pandas`
-- `matplotlib`, `seaborn`
-- `scikit-learn`
-- `datasets`
-- `sentence-transformers`
-- `tqdm`
-
-## Installation
+Recommended: Python 3.11 virtual environment.
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip setuptools wheel
 pip install -r requirements.txt
 ```
 
-## Phase 1 Dataset Setup
+If `python3.11` is not available on macOS:
 
-For the LSH vs HNSW research plan, Phase 1 assets are prepared with:
+```bash
+brew install python@3.11
+export PATH="/opt/homebrew/opt/python@3.11/bin:$PATH"
+```
+
+## Phase 1 (Data + Ground Truth)
 
 ```bash
 python scripts/phase1/prepare_sift1m.py --hdf5-path sift-128-euclidean.hdf5 --output-dir data/sift1m
@@ -78,158 +45,39 @@ python scripts/phase1/prepare_msmarco.py --output-dir data/msmarco --n-passages 
 python scripts/phase1/compute_groundtruth.py --base-path data/msmarco/base.npy --query-path data/msmarco/query.npy --output-path data/msmarco/groundtruth.npy --metric ip --k 100
 ```
 
-Detailed reproducibility notes are documented in `PHASE1.md`.
+Details: `PHASE1.md`
 
-## Phase 2 Baseline Reproduction
+## Phase 2 (SIFT1M Reproducibility Baselines)
 
-Phase 2 reproduces SIFT1M baselines (HNSW and FALCONN) with a shared timing harness.
+One-command run:
+
+```bash
+python scripts/phase2/run_phase2_sift1m.py --data-dir data/sift1m --results-dir results/phase2
+```
+
+This executes:
+
+- HNSW SIFT1M baseline
+- FALCONN SIFT1M baseline (if installable)
+- FAISS LSH fallback if FALCONN is unavailable
+- consolidated CSV + recall/QPS plot + markdown report
+
+Manual commands:
 
 ```bash
 python scripts/phase2/reproduce_hnsw_sift1m.py --data-dir data/sift1m --k 10 --M 16 --ef-construction 200 --ef-search 100
 python scripts/phase2/reproduce_falconn_sift1m.py --data-dir data/sift1m --k 10 --num-hash-tables 20 --num-hash-bits 18 --num-probes 64
 python scripts/phase2/reproduce_faiss_lsh_sift1m.py --data-dir data/sift1m --k 10 --nbits 256
 python scripts/phase2/summarize_phase2.py --results-dir results/phase2
-python scripts/phase2/run_phase2_sift1m.py --data-dir data/sift1m --results-dir results/phase2
 ```
 
-Detailed instructions are documented in `PHASE2.md`.
+Details: `PHASE2.md`
 
-## Quick Start
+## Current Known Constraint
 
-### 1) Run module smoke tests
+On modern macOS toolchains, `falconn` may fail to build from source. When that happens, Phase 2 scripts automatically fall back to FAISS `IndexLSH` so work can proceed, but those results are not equivalent to a true FALCONN baseline.
 
-```bash
-python lsh.py
-python oracle.py
-python stream.py
-python evaluate.py
-```
+## Notes
 
-Each script includes assertions and prints success if internal checks pass.
-
-### 2) Run synthetic experiment (fast)
-
-```bash
-python experiments/day3_synthetic.py
-```
-
-Expected behavior:
-
-- Oracle stores exactly 1 per cluster (`10` total in this setup).
-- LSH filter stores a small multiple of that (still strongly compressed).
-- Printed table shows precision/recall/compression and confusion counts.
-
-### 3) Run real-data experiment
-
-```bash
-python experiments/day4_real_data.py
-```
-
-On first run this will:
-
-- stream MS MARCO passages
-- encode with `sentence-transformers/all-MiniLM-L6-v2`
-- cache embeddings to `embeddings.npy`
-
-Later runs reuse the cache for speed.
-
-### 4) Run full sweep + figures
-
-```bash
-python experiments/day5_sweep.py
-```
-
-Outputs saved under `results/`:
-
-- `sweep_results.csv`
-- `recall_heatmap.png`
-- `precision_heatmap.png`
-- `theory_vs_empirical.png`
-- `memory_over_time.png`
-
-## Metrics
-
-The project evaluates filter decisions against oracle decisions per stream element.
-
-- `TP`: filter admits, oracle admits (correct novel keep)
-- `FP`: filter admits, oracle rejects (false admit of redundant item)
-- `FN`: filter rejects, oracle admits (false reject of novel item)
-- `TN`: filter rejects, oracle rejects (correct redundant reject)
-
-Derived metrics:
-
-- `precision = TP / (TP + FP)`
-- `recall = TP / (TP + FN)`
-- `compression_ratio = admitted_count / stream_length`
-
-Interpretation:
-
-- Higher precision -> fewer redundant vectors stored.
-- Higher recall -> fewer novel vectors lost.
-- Lower compression ratio -> less memory footprint.
-
-## Main Parameters and Their Effects
-
-- `k` (hash bits per table):
-  - higher `k` -> stricter bucket matching, usually fewer accidental collisions
-- `L` (number of tables):
-  - higher `L` -> more chances to find true near-duplicates
-- `similarity_threshold`:
-  - higher threshold -> more tolerant, more admits
-  - lower threshold -> stricter novelty filtering
-- `redundancy` in `real_stream`:
-  - controls duplicate fraction of generated stream
-
-Rule of thumb:
-
-- Start at `k=8`, `L=8`, `similarity_threshold=0.9`.
-- Increase `k` if false admits are too high.
-- Increase `L` if recall is low (missing novel/duplicate discrimination trade-off depends on stream geometry).
-
-## Reproducibility
-
-Most scripts use fixed seeds (`seed=42` by default), so runs are stable given:
-
-- same dependency versions
-- same model version/cache
-- same hardware math behavior
-
-If you need strict reproducibility across machines, pin package versions in `requirements.txt` and keep the same cached embeddings file.
-
-## Example Existing Sweep Results
-
-The checked-in `results/sweep_results.csv` already contains runs for:
-
-- `k ∈ {4, 8, 16}`
-- `L ∈ {4, 8, 16}`
-- redundancy levels `{20%, 50%, 80%}`
-
-Typical pattern in this artifact:
-
-- `k=4` with moderate/high `L` gives near-perfect precision/recall.
-- very high `k` (e.g., `16`) can increase false admits in some settings due to collision dynamics and stream structure.
-- compression tracks redundancy: more redundant streams lead to lower optimal keep fraction.
-
-## Troubleshooting
-
-- Real-data script is slow on first run:
-  - expected; model inference + dataset loading happen once.
-- Out-of-memory concerns:
-  - reduce `N_PASSAGES` in experiment scripts.
-- No cache reuse:
-  - confirm `embeddings.npy` path and write permissions.
-- Plot generation fails in headless environments:
-  - script already forces non-interactive backend (`matplotlib.use("Agg")`).
-
-## Notes and Limitations
-
-- `LSHAdmissionFilter` still verifies cosine on bucket candidates, so it is not purely hash-only.
-- Real-stream "duplicates" are injected via noisy copies, which approximates practical near-duplicates but is still synthetic augmentation.
-- The project is research/prototyping oriented rather than a packaged production library.
-
-## Next Improvements (Optional)
-
-- Add command-line interfaces for all experiments.
-- Convert configs (`k`, `L`, threshold, dataset size) to argparse flags.
-- Add unit tests under `tests/` and CI workflow.
-- Add latency benchmarking (time per insert) and memory profiling.
+- Keep large data artifacts in `data/` out of git (already covered in `.gitignore`).
+- Use `results/phase2/` and `results/phase3_*` as the source of truth for generated metrics and figures.
