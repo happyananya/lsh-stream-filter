@@ -89,6 +89,7 @@ python scripts/phase2/reproduce_hnsw_sift1m.py --data-dir data/sift1m --k 10 --M
 python scripts/phase2/reproduce_falconn_sift1m.py --data-dir data/sift1m --k 10 --num-hash-tables 20 --num-hash-bits 18 --num-probes 64
 python scripts/phase2/reproduce_faiss_lsh_sift1m.py --data-dir data/sift1m --k 10 --nbits 256
 python scripts/phase2/summarize_phase2.py --results-dir results/phase2
+python scripts/phase2/run_phase2_sift1m.py --data-dir data/sift1m --results-dir results/phase2
 ```
 
 Detailed instructions are documented in `PHASE2.md`.

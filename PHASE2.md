@@ -83,6 +83,21 @@ This keeps Phase 2 moving, but keep in mind it is a fallback baseline (weaker th
 python scripts/phase2/summarize_phase2.py --results-dir results/phase2
 ```
 
+## 4) One-command SIFT1M Phase 2 run
+
+Run all SIFT1M Phase 2 tasks (HNSW + FALCONN if available, otherwise FAISS fallback),
+then generate a consolidated CSV, recall-vs-QPS plot, and short report:
+
+```bash
+python scripts/phase2/run_phase2_sift1m.py --data-dir data/sift1m --results-dir results/phase2
+```
+
+Generated artifacts:
+
+- `results/phase2/sift1m_phase2_results.csv`
+- `results/phase2/sift1m_phase2_recall_qps.png`
+- `results/phase2/sift1m_phase2_report.md`
+
 ## Harness policy (frozen for later phases)
 
 - Warm-up queries before measurement
