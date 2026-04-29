@@ -80,6 +80,19 @@ python scripts/phase1/compute_groundtruth.py --base-path data/msmarco/base.npy -
 
 Detailed reproducibility notes are documented in `PHASE1.md`.
 
+## Phase 2 Baseline Reproduction
+
+Phase 2 reproduces SIFT1M baselines (HNSW and FALCONN) with a shared timing harness.
+
+```bash
+python scripts/phase2/reproduce_hnsw_sift1m.py --data-dir data/sift1m --k 10 --M 16 --ef-construction 200 --ef-search 100
+python scripts/phase2/reproduce_falconn_sift1m.py --data-dir data/sift1m --k 10 --num-hash-tables 20 --num-hash-bits 18 --num-probes 64
+python scripts/phase2/reproduce_faiss_lsh_sift1m.py --data-dir data/sift1m --k 10 --nbits 256
+python scripts/phase2/summarize_phase2.py --results-dir results/phase2
+```
+
+Detailed instructions are documented in `PHASE2.md`.
+
 ## Quick Start
 
 ### 1) Run module smoke tests
