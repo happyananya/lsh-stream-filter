@@ -1,10 +1,13 @@
 import os
 import time
+import tempfile
 import numpy as np
 import pandas as pd
 import hnswlib
 import faiss
 import falconn
+import psutil
+import gc
 from benchmark_harness import benchmark
 
 def run_hnsw_sweep(base, queries, gt, output_rows):
@@ -23,6 +26,14 @@ def run_hnsw_sweep(base, queries, gt, output_rows):
     build_time = time.time() - t0
     print(f"HNSW built in {build_time:.2f}s")
     
+    # Measure index size
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        temp_path = f.name
+    index.save_index(temp_path)
+    index_size_mb = os.path.getsize(temp_path) / (1024 * 1024)
+    os.remove(temp_path)
+    print(f"  Index size: {index_size_mb:.2f} MB")
+    
     # Set thread count back to 1 for the query benchmark to measure raw sequential QPS
     # (The plan dictates single-threaded sequential querying to simulate latency)
     index.set_num_threads(1)
@@ -35,12 +46,13 @@ def run_hnsw_sweep(base, queries, gt, output_rows):
     for ef in ef_search_values:
         print(f"  Evaluating HNSW efSearch={ef}")
         index.set_ef(ef)
-        stats = benchmark(query_fn, queries, gt, k=10)
+        stats = benchmark(query_fn, queries, gt, base=base, metric='ip', k=10)
         
         output_rows.append({
             'Method': 'HNSW',
             'Parameters': f"ef={ef}",
             'Build_Time_s': build_time,
+            'Index_Size_MB': index_size_mb,
             **stats
         })
 
@@ -57,17 +69,25 @@ def run_faiss_lsh_sweep(base, queries, gt, output_rows):
         index.add(base)
         build_time = time.time() - t0
         
+        # Measure index size
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            temp_path = f.name
+        faiss.write_index(index, temp_path)
+        index_size_mb = os.path.getsize(temp_path) / (1024 * 1024)
+        os.remove(temp_path)
+        
         # FAISS search expects a batch of queries, so we wrap it
         def query_fn(q, k):
             # q is 1D (384,), faiss needs 2D (1, 384)
             _, I = index.search(q.reshape(1, -1), k)
             return I[0]
             
-        stats = benchmark(query_fn, queries, gt, k=10)
+        stats = benchmark(query_fn, queries, gt, base=base, metric='ip', k=10)
         output_rows.append({
             'Method': 'Vanilla LSH (FAISS)',
             'Parameters': f"nbits={nbits}",
             'Build_Time_s': build_time,
+            'Index_Size_MB': index_size_mb,
             **stats
         })
 
@@ -94,10 +114,16 @@ def run_falconn_sweep(base, queries, gt, output_rows):
         
         falconn.compute_number_of_hash_functions(num_hash_bits, params_cp)
         
+        process = psutil.Process(os.getpid())
+        mem_before = process.memory_info().rss
+        
         t0 = time.time()
         table = falconn.LSHIndex(params_cp)
         table.setup(base)
         build_time = time.time() - t0
+        
+        mem_after = process.memory_info().rss
+        index_size_mb = max(0, (mem_after - mem_before) / (1024 * 1024))
         
         query_object = table.construct_query_object()
         
@@ -110,14 +136,20 @@ def run_falconn_sweep(base, queries, gt, output_rows):
                 continue # num probes must be >= num tables
             print(f"    Evaluating FALCONN tables={num_tables}, probes={probes}")
             query_object.set_num_probes(probes)
-            stats = benchmark(query_fn, queries, gt, k=10)
+            stats = benchmark(query_fn, queries, gt, base=base, metric='ip', k=10)
             
             output_rows.append({
                 'Method': 'FALCONN',
                 'Parameters': f"L={num_tables}, probes={probes}",
                 'Build_Time_s': build_time,
+                'Index_Size_MB': index_size_mb,
                 **stats
             })
+            
+        # Free memory before next FALCONN table
+        del query_object
+        del table
+        gc.collect()
 
 def main():
     print("Loading datasets...")
