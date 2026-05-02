@@ -33,5 +33,13 @@ data/
 *.log
 *.tmp
 
+#results
+results/archive/
+
+archive/
+
+results.zip
+data.zip
+
 # Keep repository directories if needed
 !data/.gitkeep
