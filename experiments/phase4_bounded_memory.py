@@ -63,9 +63,9 @@ def run_budget_sweep(stream_name, stream_file, source_ids_file, queries, oracle_
         
         # Semantic Dedup is fundamentally O(|M|) per insertion because it does an exact 
         # nearest-neighbor search for every incoming item. Even with FAISS, it scales linearly.
-        # We restrict it to frac <= 0.25 (budget <= 500,000) to get a good curve for the paper,
-        # but be aware it will take ~10-15 mins per stream at frac=0.25.
-        if frac <= 0.25:
+        # As you've seen, it drops to ~50-70 items/sec as the index grows, which means a 2M item stream
+        # takes 8+ hours. We STRICTLY restrict it to frac <= 0.05 (budget <= 100,000) so it finishes fast.
+        if frac <= 0.05:
             policies['SemanticDedup (eps=0.1)'] = SemanticDedupRetention(dim=dim, capacity=B, epsilon=0.1)
         
         # At B=1.00, we don't need to run Reservoir/FIFO since they just keep everything
