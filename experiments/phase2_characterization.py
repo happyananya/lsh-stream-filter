@@ -175,7 +175,11 @@ def exp3_duplicate_sweep(K=10, L=8, capacity=100000):
         elapsed = time.time() - t0
         stats = policy.stats()
         
-        dup_discard_rate = 1.0 - (n_dupes_kept / max(n_dupes_total, 1))
+        if n_dupes_total == 0:
+            dup_discard_rate = float('nan')
+        else:
+            dup_discard_rate = 1.0 - (n_dupes_kept / n_dupes_total)
+            
         orig_keep_rate = n_originals_kept / max(n_originals_total, 1)
         
         print(f"    Time: {elapsed:.1f}s | Kept: {stats['kept']:,}")
@@ -226,14 +230,13 @@ def exp4_k_sweep(stream, queries, oracle_gt, L=8, capacity=100000):
             capacity=capacity, aggregator='median', seed=42,
         )
         
-        metrics, stream_stats = run_experiment(
+        result, _ = run_experiment(
             policy=policy,
             stream=stream,
             source_ids=source_ids,
             queries=queries,
             oracle_gt=oracle_gt,
-            policy_name=f"K={K}, L=8",
-            k=10
+            policy_name=f"K={K}, L=8"
         )
         
         rows.append({
@@ -241,13 +244,13 @@ def exp4_k_sweep(stream, queries, oracle_gt, L=8, capacity=100000):
             'L': L,
             'n_buckets_per_table': 2**K,
             'capacity': capacity,
-            'kept': stream_stats['kept'],
-            'retention_rate': stream_stats['retention_rate'],
-            'recall_at_10': metrics['recall_at_10'],
-            'recall_p10': metrics['recall_p10'],
-            'recall_p50': metrics['recall_p50'],
-            'recall_p90': metrics['recall_p90'],
-            'throughput': stream_stats['throughput_items_per_sec'],
+            'kept': result['kept'],
+            'retention_rate': result['retention_rate'],
+            'recall_at_10': result.get('recall@10_mean', 0),
+            'recall_p10': result.get('recall@10_p10', 0),
+            'recall_p50': result.get('recall@10_p50', 0),
+            'recall_p90': result.get('recall@10_p90', 0),
+            'throughput': result['throughput_items_per_sec'],
         })
     
     df = pd.DataFrame(rows)

@@ -17,9 +17,13 @@ def stream_through_policy(policy, stream: np.ndarray, source_ids: np.ndarray, re
     n = len(stream)
     t0 = time.time()
     kept_count = 0
+    latencies = np.zeros(n, dtype=np.int64)
     
     for i in range(n):
+        t_start = time.perf_counter_ns()
         result = policy.insert(stream[i], item_id=source_ids[i])
+        latencies[i] = time.perf_counter_ns() - t_start
+        
         if result:
             kept_count += 1
         
@@ -36,6 +40,7 @@ def stream_through_policy(policy, stream: np.ndarray, source_ids: np.ndarray, re
         'retention_rate': policy.kept_count() / n,
         'throughput_items_per_sec': n / elapsed,
         'total_time_s': elapsed,
+        'per_item_latencies_ns': latencies,
     }
 
 
@@ -94,11 +99,16 @@ def evaluate_recall(policy, queries: np.ndarray, oracle_gt: np.ndarray,
 
 def run_experiment(policy, stream: np.ndarray, source_ids: np.ndarray, queries: np.ndarray,
                    oracle_gt: np.ndarray, policy_name: str,
-                   k: int = 10, metric: str = 'ip'):
+                   cluster_assignments: np.ndarray = None, n_clusters: int = 1000):
     """
-    Full experiment: stream → retain → evaluate.
+    Full experiment: stream → retain → evaluate using added_metrics.
     Returns a results dict suitable for CSV logging.
     """
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from added_metrics import evaluate_policy_complete
+    
     print(f"\n{'='*60}")
     print(f"Policy: {policy_name}")
     print(f"{'='*60}")
@@ -110,21 +120,36 @@ def run_experiment(policy, stream: np.ndarray, source_ids: np.ndarray, queries: 
     print(f"  Throughput: {stream_stats['throughput_items_per_sec']:,.0f} items/s")
     
     # Evaluate
-    print(f"  Evaluating recall@{k}...")
-    recall_stats = evaluate_recall(policy, queries, oracle_gt, k=k, metric=metric)
-    print(f"  Recall@{k}: {recall_stats['recall']:.4f} "
-          f"(p10={recall_stats['recall_p10']:.4f}, p50={recall_stats['recall_p50']:.4f}, "
-          f"p90={recall_stats['recall_p90']:.4f})")
+    print(f"  Evaluating extended metrics...")
+    kept_set, kept_ids = policy.kept_set()
+    
+    if cluster_assignments is None:
+        cluster_assignments = np.zeros(len(stream), dtype=int)
+        n_clusters = 1
+        
+    metrics = evaluate_policy_complete(
+        kept_set=kept_set,
+        kept_ids=kept_ids,
+        full_stream=stream,
+        queries=queries,
+        oracle_topk=oracle_gt,
+        cluster_assignments=cluster_assignments,
+        n_clusters=n_clusters,
+        per_item_latencies_ns=stream_stats.pop('per_item_latencies_ns'),
+        embedding_dim=stream.shape[1],
+        n_hash_tables=getattr(policy, 'L', 8),
+        bits_per_signature=getattr(policy, 'K', 10),
+    )
+    
+    print(f"  Recall@10: {metrics['recall@10_mean']:.4f} "
+          f"(p10={metrics['recall@10_p10']:.4f}, p50={metrics['recall@10_p50']:.4f}, "
+          f"p90={metrics['recall@10_p90']:.4f})")
     
     # Combine
     result = {
         'policy': policy_name,
         **stream_stats,
-        'recall_at_k': recall_stats['recall'],
-        'recall_std': recall_stats['recall_std'],
-        'recall_p10': recall_stats['recall_p10'],
-        'recall_p50': recall_stats['recall_p50'],
-        'recall_p90': recall_stats['recall_p90'],
+        **metrics,
     }
     
     # Add policy-specific stats if available
@@ -133,4 +158,4 @@ def run_experiment(policy, stream: np.ndarray, source_ids: np.ndarray, queries: 
         if key not in result:
             result[f'policy_{key}'] = val
     
-    return result, recall_stats['per_query_recall']
+    return result, None

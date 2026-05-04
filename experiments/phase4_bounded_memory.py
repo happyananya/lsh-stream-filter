@@ -32,6 +32,13 @@ def run_budget_sweep(stream_name, stream_file, source_ids_file, queries, oracle_
     source_ids = np.load(os.path.join(STREAMS_DIR, source_ids_file))
     N, dim = stream.shape
     
+    # Pre-compute clusters for Tier 2 diversity metrics
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from added_metrics import precompute_clusters
+    print(f"  Precomputing clusters for {stream_name}...")
+    cluster_assignments = precompute_clusters(stream, n_clusters=20)
+    
     # Pre-select recommended default parameters for BucketOccupancy
     K_opt = 10
     L_opt = 8
@@ -87,8 +94,8 @@ def run_budget_sweep(stream_name, stream_file, source_ids_file, queries, oracle_
                 queries=queries, 
                 oracle_gt=oracle_gt, 
                 policy_name=name,
-                k=10, 
-                metric='ip'
+                cluster_assignments=cluster_assignments,
+                n_clusters=20
             )
             
             # Tag with experiment metadata

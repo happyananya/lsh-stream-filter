@@ -47,8 +47,15 @@ def plot_budget_sweep(stream_name):
         c = colors.get(policy, 'black')
         m = markers.get(policy, 'o')
         
-        ax1.plot(subset['budget_fraction'] * 100, subset['recall_at_k'], 
+        ax1.plot(subset['budget_fraction'] * 100, subset['recall@10_mean'], 
                  marker=m, label=policy, color=c, linewidth=2, markersize=8)
+        
+        # Add error bars (p10 to p90)
+        if 'recall@10_p10' in subset.columns and 'recall@10_p90' in subset.columns:
+            ax1.fill_between(subset['budget_fraction'] * 100, 
+                             subset['recall@10_p10'], 
+                             subset['recall@10_p90'], 
+                             color=c, alpha=0.1)
                  
         ax2.plot(subset['budget_fraction'] * 100, subset['throughput_items_per_sec'], 
                  marker=m, label=policy, color=c, linewidth=2, markersize=8)
