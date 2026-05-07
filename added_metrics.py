@@ -309,6 +309,138 @@ def mean_intra_set_distance(
 
 
 # =============================================================================
+# TIER 2b — Cosine-based diversity metrics
+# =============================================================================
+# Complements the L2-based metrics above. On L2-normalized vectors,
+# cosine_sim(a,b) = a · b and ||a-b||² = 2(1 - cos(a,b)), so rankings
+# are identical — but cosine is bounded [0,1] and more interpretable
+# for reviewers. The aggregation statistics (mean, percentiles) differ
+# from the L2 versions due to the non-linear relationship.
+
+
+def mean_pairwise_cosine_similarity(
+    kept_set: np.ndarray,
+    sample_size: int = 5_000,
+    seed: int = 0,
+) -> Dict[str, float]:
+    """
+    Nearest-neighbor cosine similarity distribution within the kept set.
+
+    Lower mean = more diverse (items spread out in angular space).
+    Higher mean = more redundant (items cluster together).
+
+    On L2-normalized vectors, cosine_sim(a,b) = a · b  (inner product).
+
+    Complementary to mean_intra_set_distance (L2):
+      - L2 distance answers "how far apart are kept items?"
+      - Cosine similarity answers "how aligned are kept items?"
+    The distinction matters for aggregate statistics because
+    mean(sqrt(2 - 2*cos)) ≠ sqrt(2 - 2*mean(cos)).
+    """
+    if len(kept_set) < 2:
+        return {
+            'mean_nn_cosine': 0.0,
+            'max_nn_cosine': 0.0,
+            'p90_nn_cosine': 0.0,
+            'cosine_diversity_score': 1.0,
+        }
+
+    rng = np.random.RandomState(seed)
+    if len(kept_set) > sample_size:
+        idx = rng.choice(len(kept_set), size=sample_size, replace=False)
+        sample = kept_set[idx].astype(np.float32)
+    else:
+        sample = kept_set.astype(np.float32)
+
+    # Inner product on L2-normalized vectors = cosine similarity
+    index = faiss.IndexFlatIP(sample.shape[1])
+    index.add(sample)
+    # k=2: first result is self (similarity ≈ 1.0); second is true nearest neighbor
+    D, _ = index.search(sample, 2)
+    nn_cosines = D[:, 1]
+
+    return {
+        'mean_nn_cosine': float(nn_cosines.mean()),
+        'max_nn_cosine': float(nn_cosines.max()),
+        'p90_nn_cosine': float(np.percentile(nn_cosines, 90)),
+        # 1 - mean_nn_cosine: higher = more diverse
+        'cosine_diversity_score': float(1.0 - nn_cosines.mean()),
+    }
+
+
+def cosine_coverage_radius(
+    kept_set: np.ndarray,
+    full_stream: np.ndarray,
+    sample_size: int = 50_000,
+    seed: int = 0,
+) -> float:
+    """
+    Worst-case angular gap: for sampled stream items, find the nearest
+    kept-set representative by cosine similarity, then report
+    1 - min_similarity (the largest gap).
+
+    Lower is better (tighter angular coverage).
+
+    Complementary to k_center_radius (L2 worst-case distance):
+    both measure coverage, but cosine_coverage_radius is bounded [0, 2]
+    and doesn't depend on embedding magnitude — more stable across
+    datasets with different scale characteristics.
+    """
+    if len(kept_set) == 0:
+        return 2.0  # max possible gap: 1 - (-1)
+
+    rng = np.random.RandomState(seed)
+    sample_idx = rng.choice(
+        len(full_stream),
+        size=min(sample_size, len(full_stream)),
+        replace=False,
+    )
+    sample = full_stream[sample_idx].astype(np.float32)
+
+    index = faiss.IndexFlatIP(kept_set.shape[1])
+    index.add(kept_set.astype(np.float32))
+    D, _ = index.search(sample, 1)
+
+    # D contains cosine similarities; coverage gap = 1 - similarity
+    return float(1.0 - D.min())
+
+
+def cosine_redundancy_score(
+    full_stream: np.ndarray,
+    sample_size: int = 50_000,
+    seed: int = 0,
+) -> float:
+    """
+    Stream redundancy measured in cosine space.
+
+    Defined as mean nearest-neighbor cosine similarity (excluding self).
+    Range [0, 1] for non-negative embeddings, [-1, 1] in general.
+    Higher = more redundant.
+
+    Advantage over the L2-based stream_redundancy_score:
+    cosine similarity is inherently bounded, so this metric doesn't
+    need a fragile sampled-diameter estimate. More stable across
+    datasets with different dimensionality and scale.
+    """
+    if len(full_stream) < 2:
+        return 0.0
+
+    rng = np.random.RandomState(seed)
+    idx = rng.choice(
+        len(full_stream),
+        size=min(sample_size, len(full_stream)),
+        replace=False,
+    )
+    sample = full_stream[idx].astype(np.float32)
+
+    index = faiss.IndexFlatIP(sample.shape[1])
+    index.add(sample)
+    D, _ = index.search(sample, 2)  # k=2; first is self
+
+    return float(D[:, 1].mean())
+
+
+# =============================================================================
 # TIER 3 — Practical metrics for the LLM-memory framing
 # =============================================================================
 
@@ -422,10 +554,14 @@ def evaluate_policy_complete(
 
     out.update(latency_distribution(per_item_latencies_ns))
 
-    # Tier 2
+    # Tier 2 — L2 diversity
     out['k_center_radius'] = k_center_radius(kept_set, full_stream)
     out.update(cluster_coverage(kept_ids, cluster_assignments, n_clusters))
     out['mean_intra_set_distance'] = mean_intra_set_distance(kept_set)
+
+    # Tier 2b — Cosine diversity
+    out.update(mean_pairwise_cosine_similarity(kept_set))
+    out['cosine_coverage_radius'] = cosine_coverage_radius(kept_set, full_stream)
 
     # Tier 3
     out.update(memory_footprint_bytes(

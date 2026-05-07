@@ -64,6 +64,10 @@ class BucketOccupancyRetention(RetentionPolicy):
         capacity: maximum number of retained items (memory budget B)
         aggregator: how to combine occupancy across L tables.
             - 'min', 'max', 'mean', 'median': aggregate per-table occupancy counts
+            - 'jaccard': compute max Jaccard similarity of the new item's
+              L-element bucket signature against all retained items sharing
+              any bucket. Uses an inverted index for efficient candidate lookup.
+              J(a,b) = |sig_a ∩ sig_b| / |sig_a ∪ sig_b| = matches / (2L - matches)
         threshold: hard occupancy threshold T (keep if O(x) < T). 
                    If None, uses capacity-bounded mode with most-redundant eviction.
         seed: random seed for hash functions
@@ -88,6 +92,10 @@ class BucketOccupancyRetention(RetentionPolicy):
         
         # Bucket counts: L tables, each a dict mapping bucket_id -> count
         self._bucket_counts = [{} for _ in range(L)]
+        
+        # Inverted index for 'jaccard' aggregator: (table_idx, bucket_id) -> set of item_ids
+        # Only populated when aggregator='jaccard' to avoid overhead for other modes
+        self._inverted_index = {} if aggregator == 'jaccard' else None
         
         # Build the LSH hash family using FALCONN
         self._setup_hash(dim, L, K, seed)
@@ -154,6 +162,8 @@ class BucketOccupancyRetention(RetentionPolicy):
     
     def _compute_occupancy(self, bucket_ids: list) -> float:
         """Aggregate bucket occupancy across L tables."""
+        if self.aggregator == 'jaccard':
+            return self._compute_max_jaccard(bucket_ids)
         
         occupancies = []
         for i, bid in enumerate(bucket_ids):
@@ -172,19 +182,62 @@ class BucketOccupancyRetention(RetentionPolicy):
         else:
             raise ValueError(f"Unknown aggregator: {self.aggregator}")
     
+    def _compute_max_jaccard(self, bucket_ids: list) -> float:
+        """
+        Compute max Jaccard similarity of the given bucket signature
+        against all retained items that share at least one bucket.
+        
+        Uses the inverted index for efficient candidate lookup:
+        O(L × avg_bucket_size) instead of O(M).
+        
+        Jaccard between two L-element signatures:
+            J = matches / (2L - matches)
+        where matches = number of tables with identical bucket IDs.
+        """
+        # Gather candidates from the inverted index
+        candidates = set()
+        for table_idx, bid in enumerate(bucket_ids):
+            key = (table_idx, bid)
+            if key in self._inverted_index:
+                candidates.update(self._inverted_index[key])
+        
+        if not candidates:
+            return 0.0
+        
+        max_j = 0.0
+        for cand_id in candidates:
+            _, _, cand_bids = self._storage[cand_id]
+            matches = sum(1 for a, b in zip(bucket_ids, cand_bids) if a == b)
+            j = matches / (2 * self.L - matches)
+            if j > max_j:
+                max_j = j
+        return max_j
     
     def _increment_buckets(self, bucket_ids: list, item_id: int = None):
-        """Increment bucket counts for all L tables."""
+        """Increment bucket counts for all L tables and update inverted index."""
         for i, bid in enumerate(bucket_ids):
             self._bucket_counts[i][bid] = self._bucket_counts[i].get(bid, 0) + 1
+            # Maintain inverted index for Jaccard mode
+            if self._inverted_index is not None and item_id is not None:
+                key = (i, bid)
+                if key not in self._inverted_index:
+                    self._inverted_index[key] = set()
+                self._inverted_index[key].add(item_id)
     
     def _decrement_buckets(self, bucket_ids: list, item_id: int = None):
-        """Decrement bucket counts (used during eviction)."""
+        """Decrement bucket counts (used during eviction) and update inverted index."""
         for i, bid in enumerate(bucket_ids):
             if bid in self._bucket_counts[i]:
                 self._bucket_counts[i][bid] -= 1
                 if self._bucket_counts[i][bid] <= 0:
                     del self._bucket_counts[i][bid]
+            # Maintain inverted index for Jaccard mode
+            if self._inverted_index is not None and item_id is not None:
+                key = (i, bid)
+                if key in self._inverted_index:
+                    self._inverted_index[key].discard(item_id)
+                    if not self._inverted_index[key]:
+                        del self._inverted_index[key]
     
     def insert(self, embedding: np.ndarray, item_id: int) -> bool:
         self._n_seen += 1
