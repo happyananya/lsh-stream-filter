@@ -14,14 +14,14 @@ def plot_phase5():
     df = df.dropna(subset=['accuracy'])
     
     # Set aesthetics
-    plt.style.use('dark_background')
+    sns.set_theme(style="whitegrid")
     plt.figure(figsize=(10, 6))
     
-    # Colors and markers
+    # Colors and markers - adjusted for white background
     colors = {
-        'BucketOccupancy': '#00ffcc',  # Cyan/Teal
-        'FIFO': '#ff3366',            # Pink/Red
-        'Reservoir': '#ccff33'        # Lime
+        'BucketOccupancy': '#00897B',  # Deep Teal
+        'FIFO': '#D81B60',            # Deep Pink
+        'Reservoir': '#7CB342'        # Deep Lime/Green
     }
     
     # Group by policy and budget for plotting
@@ -39,7 +39,7 @@ def plot_phase5():
     )
     
     # Format axes
-    plt.title('Phase 5: LoCoMo LLM-QA Accuracy vs Memory Budget', fontsize=16, pad=20, color='white')
+    plt.title('Phase 5: LoCoMo LLM-QA Accuracy vs Memory Budget', fontsize=16, pad=20, fontweight='bold')
     plt.xlabel('Memory Budget (% of Conversation Turns)', fontsize=12, labelpad=10)
     plt.ylabel('QA Accuracy (Mean across Conversations)', fontsize=12, labelpad=10)
     
@@ -47,10 +47,10 @@ def plot_phase5():
     plt.xticks([0.1, 0.25, 0.5, 1.0], ['10%', '25%', '50%', '100%'])
     
     # Add grid
-    plt.grid(True, linestyle='--', alpha=0.3)
+    plt.grid(True, linestyle='--', alpha=0.7)
     
     # Legend
-    plt.legend(title='Retention Policy', frameon=True, facecolor='black', edgecolor='white')
+    plt.legend(title='Retention Policy', frameon=True)
     
     # Save the plot
     output_path = 'results/phase5_locomo/phase5_accuracy_plot.png'

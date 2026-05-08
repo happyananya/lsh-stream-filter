@@ -13,14 +13,14 @@ def plot_cosine_diversity():
     df = pd.read_csv(csv_path)
     
     # Set aesthetics
-    plt.style.use('dark_background')
+    sns.set_theme(style="whitegrid")
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
     
-    # Custom palette
+    # Custom palette - darker versions of previous colors for white background
     palette = {
-        'FIFO': '#ff3366',                 # Pink
-        'Reservoir': '#33ccff',            # Light Blue
-        'BucketOccupancy': '#00ffcc'       # Cyan
+        'FIFO': '#D81B60',                 # Deep Pink
+        'Reservoir': '#1E88E5',            # Medium Blue
+        'BucketOccupancy': '#00BFA5'       # Teal
     }
     
     # 1. Cosine Diversity Score (Higher = More spread out)
@@ -35,13 +35,13 @@ def plot_cosine_diversity():
         linewidth=3,
         ax=ax1
     )
-    ax1.set_title('Cosine Diversity Score (Higher is Better)', fontsize=14, pad=15)
+    ax1.set_title('Cosine Diversity Score (Higher is Better)', fontsize=14, pad=15, fontweight='bold')
     ax1.set_xlabel('Memory Budget (B/N)', fontsize=12)
     ax1.set_ylabel('Score (1 - Mean NN Cosine)', fontsize=12)
     ax1.set_xticks([0.01, 0.05, 0.1, 0.25, 0.5])
     ax1.set_xticklabels(['1%', '5%', '10%', '25%', '50%'])
-    ax1.grid(True, linestyle='--', alpha=0.3)
-    ax1.legend(title='Policy')
+    ax1.grid(True, linestyle='--', alpha=0.7)
+    ax1.legend(title='Policy', frameon=True)
 
     # 2. Cosine Coverage Radius (Lower = Better Coverage)
     sns.lineplot(
@@ -55,15 +55,15 @@ def plot_cosine_diversity():
         linewidth=3,
         ax=ax2
     )
-    ax2.set_title('Cosine Coverage Radius (Lower is Better)', fontsize=14, pad=15)
+    ax2.set_title('Cosine Coverage Radius (Lower is Better)', fontsize=14, pad=15, fontweight='bold')
     ax2.set_xlabel('Memory Budget (B/N)', fontsize=12)
     ax2.set_ylabel('Angular Gap (1 - Min Similarity)', fontsize=12)
     ax2.set_xticks([0.01, 0.05, 0.1, 0.25, 0.5])
     ax2.set_xticklabels(['1%', '5%', '10%', '25%', '50%'])
-    ax2.grid(True, linestyle='--', alpha=0.3)
-    ax2.legend(title='Policy')
+    ax2.grid(True, linestyle='--', alpha=0.7)
+    ax2.legend(title='Policy', frameon=True)
 
-    plt.suptitle('Phase 4: Cosine-Based Diversity Metrics (HeavyDuplication_50)', fontsize=18, y=1.05)
+    plt.suptitle('Phase 4: Cosine-Based Diversity Metrics (HeavyDuplication_50)', fontsize=18, y=1.02, fontweight='bold')
     plt.tight_layout()
     
     # Save the plot

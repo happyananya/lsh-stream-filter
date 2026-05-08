@@ -43,3 +43,10 @@ data.zip
 
 # Keep repository directories if needed
 !data/.gitkeep
+
+*.md
+*.pdf
+
+./vendor/*
+
+/md_files/*

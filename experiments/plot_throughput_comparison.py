@@ -29,14 +29,15 @@ def plot_throughput_comparison():
     })
     
     # Set aesthetics
-    plt.style.use('dark_background')
+    sns.set_theme(style="whitegrid")
     fig, ax1 = plt.subplots(figsize=(10, 6))
     
+    # Custom palette - darker versions for white background
     palette = {
-        'FIFO': '#ff3366',
-        'Reservoir': '#33ccff',
-        'BucketOccupancy (Median)': '#00ffcc',
-        'BucketOccupancy (Jaccard)': '#ffcc00'
+        'FIFO': '#D81B60',                 # Deep Pink
+        'Reservoir': '#1E88E5',            # Medium Blue
+        'BucketOccupancy (Median)': '#00897B',  # Deep Teal
+        'BucketOccupancy (Jaccard)': '#F57C00'  # Orange
     }
     
     # Plot Throughput on primary y-axis
@@ -53,7 +54,7 @@ def plot_throughput_comparison():
     )
     
     # Format axes
-    plt.title('Throughput Performance Comparison', fontsize=16, pad=20, color='white')
+    plt.title('Throughput Performance Comparison (Log Scale)', fontsize=16, pad=20, fontweight='bold')
     ax1.set_xlabel('Memory Budget (B/N)', fontsize=12, labelpad=10)
     ax1.set_ylabel('Throughput (Items / Second)', fontsize=12, labelpad=10)
     
@@ -64,10 +65,10 @@ def plot_throughput_comparison():
     plt.xticks([0.01, 0.05, 0.1, 0.25, 0.5], ['1%', '5%', '10%', '25%', '50%'])
     
     # Add grid
-    ax1.grid(True, linestyle='--', alpha=0.3, which='both')
+    ax1.grid(True, linestyle='--', alpha=0.7, which='both')
     
     # Legend
-    ax1.legend(title='Policy Strategy', frameon=True, facecolor='black', edgecolor='white')
+    ax1.legend(title='Policy Strategy', frameon=True)
     
     # Save the plot
     output_path = 'results/phase4_framing1/plot_throughput_comparison.png'

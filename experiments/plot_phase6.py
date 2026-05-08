@@ -13,15 +13,15 @@ def plot_phase6():
     df = pd.read_csv(csv_path)
     
     # Set aesthetics
-    plt.style.use('dark_background')
+    sns.set_theme(style="whitegrid")
     plt.figure(figsize=(10, 6))
     
-    # Colors
+    # Colors - adjusted for white background
     colors = {
-        'BucketOccupancy (Baseline, d=384)': '#00ffcc',  # Cyan
-        'FIFO (Baseline, d=384)': '#ff3366',            # Pink
-        'BucketOccupancy + JL (d=128)': '#ffcc00',      # Yellow
-        'BucketOccupancy + JL (d=64)': '#ccff33'        # Lime
+        'BucketOccupancy (Baseline, d=384)': '#00897B',  # Deep Teal
+        'FIFO (Baseline, d=384)': '#D81B60',            # Deep Pink
+        'BucketOccupancy + JL (d=128)': '#F57C00',      # Orange
+        'BucketOccupancy + JL (d=64)': '#7CB342'        # Green
     }
     
     # We want to plot Recall@10 vs Memory Budget Fraction (which represents fixed float budget)
@@ -39,7 +39,7 @@ def plot_phase6():
     )
     
     # Format axes
-    plt.title('Phase 6: JL Projection Memory-Recall Tradeoff', fontsize=16, pad=20, color='white')
+    plt.title('Phase 6: JL Projection Memory-Recall Tradeoff', fontsize=16, pad=20, fontweight='bold')
     plt.xlabel('Memory Budget (Fraction of Full Uncompressed Stream)', fontsize=12, labelpad=10)
     plt.ylabel('Recall@10', fontsize=12, labelpad=10)
     
@@ -47,10 +47,10 @@ def plot_phase6():
     plt.xticks([0.01, 0.05, 0.1, 0.25, 0.5], ['1%', '5%', '10%', '25%', '50%'])
     
     # Add grid
-    plt.grid(True, linestyle='--', alpha=0.3)
+    plt.grid(True, linestyle='--', alpha=0.7)
     
     # Legend
-    plt.legend(title='Policy & Dimension', frameon=True, facecolor='black', edgecolor='white')
+    plt.legend(title='Policy & Dimension', frameon=True)
     
     # Save the plot
     output_path = 'results/phase6_jl/phase6_jl_tradeoff.png'
